@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://tj-manufaktur.github.io/tj-manufaktur/sitemap.xml
+Sitemap: https://tj-manufaktur.de/sitemap.xml

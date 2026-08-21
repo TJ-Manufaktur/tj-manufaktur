@@ -2,13 +2,14 @@
   "name": "TJ Manufaktur",
   "short_name": "TJ Manufaktur",
   "description": "3D-Druck, Lasergravuren und individuelle Personalisierungen aus Bad Arolsen.",
-  "start_url": "/tj-manufaktur/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f7f4ef",
   "theme_color": "#171717",
   "icons": [
     {
-      "src": "assets/Logo.png",
+      "src": "/assets/Logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"

@@ -18,7 +18,7 @@ document.querySelectorAll('[data-carousel]').forEach(carousel=>{
   prev.addEventListener('click',()=>{show(index-1);restart();});next.addEventListener('click',()=>{show(index+1);restart();});carousel.addEventListener('mouseenter',()=>clearInterval(timer));carousel.addEventListener('mouseleave',restart);restart();
 });
 
-if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test.html')) {
+if (document.getElementById('requestForm')) {
   document.addEventListener('DOMContentLoaded',()=>{
     const form=document.getElementById('requestForm'),price=document.getElementById('price'),weight=document.getElementById('weight'),time=document.getElementById('time'),dims=document.getElementById('dims'),material=document.getElementById('material'),consent=document.getElementById('consent'),message=document.getElementById('message'),formGrid=form?.querySelector('.form-grid');
     const previewPanel=document.getElementById('preview')?.closest('.test-panel');

@@ -32,29 +32,81 @@ document.querySelectorAll('[data-carousel]').forEach(carousel=>{
   restart();
 });
 
-/* Test-Konfigurator: niedriger Einstiegspreis, dafür stärkerer variabler Anteil.
-   Die bisherige Kalkulation startet effektiv bei rund 9,90 EUR. Für kleine
-   Teile wird der Einstieg auf ca. 4 EUR abgesenkt; mit wachsendem Auftrag
-   steigt der Preis stärker, sodass mittlere/große Drucke die Differenz tragen. */
+/*
+ * Test-Konfigurator – belastbare Verkaufspreis-Korrektur.
+ *
+ * Der 4-EUR-Wert ist ausschließlich ein Mindestpreis für Kleinstteile.
+ * Bei größeren Drucken wird der Verkaufspreis aus Material, Maschinenzeit,
+ * Strom, Handling, Fehldruckreserve und 35 % Zielmarge berechnet.
+ *
+ * Die eigentliche Geometrie-, Material- und Zeitabschätzung bleibt in
+ * test.html. Dieser Block setzt nur den finalen Verkaufspreis und verhindert,
+ * dass eine frühere Mindestpreis-Transformation große Drucke auf 4 EUR drückt.
+ */
 if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test.html')) {
   document.addEventListener('DOMContentLoaded',()=>{
     const price=document.getElementById('price');
-    if(!price)return;
-    let internal=false;
-    const rebalance=()=>{
-      if(internal)return;
-      const text=price.textContent||'';
-      const nums=[...text.matchAll(/(\d+[,.]\d+)/g)].map(m=>Number(m[1].replace(',','.')));
-      if(nums.length<2)return;
-      const convert=p=>Math.max(4,4+(p-9.90)*1.60);
-      const lo=convert(nums[0]),hi=Math.max(lo+.50,convert(nums[1]));
-      const next=`ca. ${lo.toFixed(2).replace('.',',')}–${hi.toFixed(2).replace('.',',')} €`;
-      if(next===text)return;
-      internal=true;
-      price.textContent=next;
-      internal=false;
+    const weight=document.getElementById('weight');
+    const time=document.getElementById('time');
+    const material=document.getElementById('material');
+    if(!price||!weight||!time||!material)return;
+
+    const ELECTRICITY_EUR_KWH=0.35;
+    const MACHINE_EUR_H=1.50;
+    const WASTE_FACTOR=1.15;
+    const RISK_FACTOR=1.08;
+    const TARGET_MARGIN=0.35;
+    const MIN_PRICE=4.00;
+
+    let updating=false;
+
+    const parseNumber=text=>{
+      const m=String(text||'').match(/(\d+(?:[,.]\d+)?)/);
+      return m?Number(m[1].replace(',','.')):NaN;
     };
-    new MutationObserver(rebalance).observe(price,{childList:true,characterData:true,subtree:true});
-    rebalance();
+
+    const updatePrice=()=>{
+      if(updating)return;
+      const grams=parseNumber(weight.textContent);
+      const hours=parseNumber(time.textContent);
+      if(!Number.isFinite(grams)||!Number.isFinite(hours)||grams<=0||hours<=0)return;
+
+      const opt=material.options[material.selectedIndex];
+      const kgPrice=Number(opt?.dataset?.kgprice||0);
+      const power=Number(opt?.dataset?.power||0.12);
+      if(!Number.isFinite(kgPrice)||kgPrice<=0)return;
+
+      const materialCost=(grams/1000)*kgPrice*WASTE_FACTOR;
+      const machineCost=hours*MACHINE_EUR_H;
+      const electricity=hours*power*ELECTRICITY_EUR_KWH;
+
+      // Kleine Teile brauchen trotzdem Vorbereitung/Entnahme; bei größeren
+      // Teilen steigt der Handling-Anteil leicht mit dem Materialverbrauch.
+      const handling=1.50+(grams/100)*1.25;
+
+      const costBeforeMargin=(materialCost+machineCost+electricity+handling)*RISK_FACTOR;
+      const sell=Math.max(MIN_PRICE,costBeforeMargin/(1-TARGET_MARGIN));
+      const lo=sell;
+      const hi=Math.max(lo+0.50,sell*1.08);
+
+      const next=`ca. ${lo.toFixed(2).replace('.',',')}–${hi.toFixed(2).replace('.',',')} €`;
+      if(price.textContent===next)return;
+      updating=true;
+      price.textContent=next;
+      updating=false;
+    };
+
+    new MutationObserver(updatePrice).observe(weight,{childList:true,characterData:true,subtree:true});
+    new MutationObserver(updatePrice).observe(time,{childList:true,characterData:true,subtree:true});
+    material.addEventListener('input',updatePrice);
+    material.addEventListener('change',updatePrice);
+
+    // Die Inline-Kalkulation läuft ebenfalls beim Ändern dieser Felder.
+    ['infill','scale','quality'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el){el.addEventListener('input',()=>queueMicrotask(updatePrice));el.addEventListener('change',()=>queueMicrotask(updatePrice));}
+    });
+
+    updatePrice();
   });
 }

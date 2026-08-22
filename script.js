@@ -50,10 +50,12 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
       .calc-notice{margin-top:14px;padding:13px 14px;border-left:3px solid #b08a4a;background:#fbf8f3;color:#6f6b65;font-size:13px}
       .calc-notice strong{color:#171717}.calc-notice.warn{border-left-color:#a56d18;background:#fff8e9}.calc-notice.danger{border-left-color:#a13232;background:#fff1f1;color:#843030}
       .calc-mini{font-size:12px;color:#6f6b65;margin-top:6px}.field-full{grid-column:1/-1}
+      .price-detail{margin-top:8px;color:#f0e5d4;font-size:14px;line-height:1.5}
+      .price-unavailable{font-size:28px!important;line-height:1.25;color:#d0a75e!important}
     `;
     document.head.appendChild(extraStyle);
 
-    /* Sinnvolle Auftragsdaten ergänzen, ohne den bestehenden Kalkulator umzubauen. */
+    /* Sinnvolle Auftragsdaten ergänzen. */
     let quantity=null,color=null,support=null;
     if(formGrid){
       const messageField=message?.closest('.field');
@@ -98,7 +100,12 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
     }
 
     /* Preis wirklich als unverbindliche Vorabschätzung kennzeichnen. */
+    let priceDetail=null;
     if(price){
+      priceDetail=document.createElement('div');
+      priceDetail.className='price-detail';
+      price.insertAdjacentElement('afterend',priceDetail);
+
       const quoteNote=document.createElement('div');
       quoteNote.className='calc-notice';
       quoteNote.innerHTML='<strong>Unverbindliche Vorabschätzung.</strong> Der angezeigte Betrag ist noch kein verbindliches Angebot. Vor Produktionsbeginn prüfen wir Druckbarkeit, Ausrichtung, Supportbedarf und Datei technisch. Du erhältst den finalen Gesamtpreis vor Vertragsschluss.';
@@ -111,19 +118,26 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
     buildNotice.style.display='none';
     const stats=document.querySelector('.stats');
     stats?.insertAdjacentElement('afterend',buildNotice);
+    let buildExceeded=false;
 
     const parseDims=()=>{
       const nums=[...String(dims?.textContent||'').matchAll(/(\d+(?:[,.]\d+)?)/g)].map(m=>Number(m[1].replace(',','.')));
       return nums.length>=3?nums.slice(0,3):null;
     };
+
     const updateBuildCheck=()=>{
       const d=parseDims();
-      if(!d){buildNotice.style.display='none';return;}
+      if(!d){
+        buildExceeded=false;
+        buildNotice.style.display='none';
+        return;
+      }
       const max=Math.max(...d);
+      buildExceeded=max>256;
       buildNotice.style.display='block';
-      if(max>256){
+      if(buildExceeded){
         buildNotice.className='calc-notice danger';
-        buildNotice.innerHTML=`<strong>Bauraum überschritten:</strong> Das Modell ist aktuell ${d.map(x=>Math.round(x)).join(' × ')} mm groß. Ein Bambu Lab P1S hat nominell 256 × 256 × 256 mm Bauraum. Das Modell muss voraussichtlich skaliert, anders ausgerichtet oder geteilt werden. Wir prüfen das vor der Fertigung.`;
+        buildNotice.innerHTML=`<strong>Bauraum überschritten:</strong> Das Modell ist aktuell ${d.map(x=>Math.round(x)).join(' × ')} mm groß. Ein Bambu Lab P1S hat nominell 256 × 256 × 256 mm Bauraum. Für diese Größe geben wir deshalb keinen automatischen Preis aus. Das Modell muss voraussichtlich skaliert, anders ausgerichtet oder geteilt werden. Du kannst die Anfrage trotzdem zur individuellen Prüfung senden.`;
       }else if(max>245){
         buildNotice.className='calc-notice warn';
         buildNotice.innerHTML=`<strong>Nahe an der Bauraumgrenze:</strong> ${d.map(x=>Math.round(x)).join(' × ')} mm. Je nach Ausrichtung, Randbereichen und Druckstrategie ist eine manuelle Prüfung erforderlich.`;
@@ -137,13 +151,27 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
     const ELECTRICITY_EUR_KWH=0.35,MACHINE_EUR_H=1.50,WASTE_FACTOR=1.15,RISK_FACTOR=1.08,TARGET_MARGIN=0.35,MIN_PRICE=4.00;
     let updating=false;
     const parseNumber=text=>{const m=String(text||'').match(/(\d+(?:[,.]\d+)?)/);return m?Number(m[1].replace(',','.')):NaN;};
+    const money=n=>n.toFixed(2).replace('.',',');
+
     const updatePrice=()=>{
       if(updating)return;
+      updateBuildCheck();
+
+      if(buildExceeded){
+        updating=true;
+        price.classList.add('price-unavailable');
+        price.textContent='Keine automatische Preisschätzung möglich';
+        if(priceDetail)priceDetail.textContent='Modell überschreitet den P1S-Bauraum · individuelle Prüfung erforderlich.';
+        updating=false;
+        return;
+      }
+
       const gramsOne=parseNumber(weight.textContent),hoursOne=parseNumber(time.textContent);
       const qty=Math.max(1,Math.min(100,Math.round(Number(quantity?.value||1))));
       if(!Number.isFinite(gramsOne)||!Number.isFinite(hoursOne)||gramsOne<=0||hoursOne<=0)return;
       const opt=material.options[material.selectedIndex],kgPrice=Number(opt?.dataset?.kgprice||0),power=Number(opt?.dataset?.power||0.12);
       if(!Number.isFinite(kgPrice)||kgPrice<=0)return;
+
       const totalGrams=gramsOne*qty,totalHours=hoursOne*qty;
       const materialCost=(totalGrams/1000)*kgPrice*WASTE_FACTOR;
       const machineCost=totalHours*MACHINE_EUR_H;
@@ -152,18 +180,26 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
       const costBeforeMargin=(materialCost+machineCost+electricity+handling)*RISK_FACTOR;
       const sell=Math.max(MIN_PRICE,costBeforeMargin/(1-TARGET_MARGIN));
       const lo=sell,hi=Math.max(lo+0.50,sell*1.08);
-      const suffix=qty>1?` · ${qty} Stk.`:'';
-      const next=`ca. ${lo.toFixed(2).replace('.',',')}–${hi.toFixed(2).replace('.',',')} €${suffix}`;
-      if(price.textContent===next)return;
-      updating=true;price.textContent=next;updating=false;
+      const loPiece=lo/qty,hiPiece=hi/qty;
+
+      updating=true;
+      price.classList.remove('price-unavailable');
+      if(qty===1){
+        price.textContent=`ca. ${money(lo)}–${money(hi)} €`;
+        if(priceDetail)priceDetail.textContent='Preis für 1 Exemplar.';
+      }else{
+        price.textContent=`ca. ${money(lo)}–${money(hi)} € gesamt`;
+        if(priceDetail)priceDetail.innerHTML=`${qty} identische Exemplare · <strong style="color:#fff">ca. ${money(loPiece)}–${money(hiPiece)} € pro Stück</strong>`;
+      }
+      updating=false;
     };
 
-    new MutationObserver(()=>{updatePrice();updateBuildCheck();}).observe(weight,{childList:true,characterData:true,subtree:true});
+    new MutationObserver(()=>{updateBuildCheck();updatePrice();}).observe(weight,{childList:true,characterData:true,subtree:true});
     new MutationObserver(updatePrice).observe(time,{childList:true,characterData:true,subtree:true});
-    if(dims)new MutationObserver(updateBuildCheck).observe(dims,{childList:true,characterData:true,subtree:true});
+    if(dims)new MutationObserver(()=>{updateBuildCheck();updatePrice();}).observe(dims,{childList:true,characterData:true,subtree:true});
     material.addEventListener('input',updatePrice);material.addEventListener('change',updatePrice);
     quantity?.addEventListener('input',updatePrice);quantity?.addEventListener('change',updatePrice);
-    ['infill','scale','quality'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',()=>queueMicrotask(()=>{updatePrice();updateBuildCheck();}));el.addEventListener('change',()=>queueMicrotask(()=>{updatePrice();updateBuildCheck();}));}});
+    ['infill','scale','quality'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',()=>queueMicrotask(updatePrice));el.addEventListener('change',()=>queueMicrotask(updatePrice));}});
 
     /* Zusatzangaben in die bestehende Nachricht einbetten, damit sie auch mit dem vorhandenen Mail-Backend ankommen. */
     if(form&&message){
@@ -173,14 +209,15 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
         const meta=[
           `Stückzahl: ${qty}`,
           `Farbwunsch: ${color?.value||'Nach Absprache'}`,
-          `Support / Überhänge: ${support?.value||'Bitte technisch prüfen'}`
+          `Support / Überhänge: ${support?.value||'Bitte technisch prüfen'}`,
+          `Bauraumstatus: ${buildExceeded?'P1S-Bauraum überschritten – individuelle Prüfung erforderlich':'innerhalb der automatischen Bauraumprüfung'}`
         ].join('\n');
         message.value=`${original}${original.trim()?'\n\n':''}--- Konfigurator-Zusatzangaben ---\n${meta}`;
         setTimeout(()=>{message.value=original;},0);
       },true);
     }
 
-    updatePrice();
     updateBuildCheck();
+    updatePrice();
   });
 }

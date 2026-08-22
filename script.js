@@ -40,6 +40,7 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
     const weight=document.getElementById('weight');
     const time=document.getElementById('time');
     const dims=document.getElementById('dims');
+    const volume=document.getElementById('volume');
     const material=document.getElementById('material');
     const consent=document.getElementById('consent');
     const message=document.getElementById('message');
@@ -52,11 +53,18 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
       .calc-mini{font-size:12px;color:#6f6b65;margin-top:6px}.field-full{grid-column:1/-1}
       .price-detail{margin-top:8px;color:#f0e5d4;font-size:14px;line-height:1.5}
       .price-unavailable{font-size:28px!important;line-height:1.25;color:#d0a75e!important}
+      .support-notice{display:none;margin-top:8px;padding:10px 12px;border-left:3px solid #b08a4a;background:#fff8e9;color:#6f5a35;font-size:12px;line-height:1.5}
+      .request-summary{margin-top:18px;padding:18px;border:1px solid #0002;background:#fbf8f3}
+      .request-summary h3{margin:0 0 12px;font-size:18px}.request-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:13px}
+      .request-summary-grid span{color:#6f6b65}.request-summary-grid strong{display:block;color:#171717;font-weight:600;margin-top:2px}.request-summary-note{margin-top:12px;font-size:12px;color:#6f6b65;line-height:1.5}
+      @media(min-width:851px){.test-grid{grid-template-columns:.95fr 1.05fr!important}.preview{min-height:680px!important}.preview canvas{height:680px!important}}
+      @media(max-width:850px) and (min-width:521px){.preview,.preview canvas{min-height:500px!important;height:500px!important}}
+      @media(max-width:520px){.request-summary-grid{grid-template-columns:1fr}.preview,.preview canvas{min-height:390px!important;height:390px!important}}
     `;
     document.head.appendChild(extraStyle);
 
     /* Sinnvolle Auftragsdaten ergänzen. */
-    let quantity=null,color=null,support=null;
+    let quantity=null,color=null,support=null,supportNotice=null;
     if(formGrid){
       const messageField=message?.closest('.field');
 
@@ -70,7 +78,7 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
 
       const supportField=document.createElement('div');
       supportField.className='field field-full';
-      supportField.innerHTML='<label for="supportChoice">Support / Überhänge</label><select id="supportChoice" name="Supporthinweis"><option value="Bitte technisch pruefen" selected>Bitte von TJ Manufaktur technisch prüfen</option><option value="Vermutlich nicht erforderlich">Vermutlich nicht erforderlich</option><option value="Vermutlich erforderlich">Vermutlich erforderlich</option></select><div class="calc-mini">Support wird nicht automatisch sicher erkannt und kann Material, Zeit und Endpreis verändern.</div>';
+      supportField.innerHTML='<label for="supportChoice">Support / Überhänge</label><select id="supportChoice" name="Supporthinweis"><option value="Bitte technisch pruefen" selected>Bitte von TJ Manufaktur technisch prüfen</option><option value="Vermutlich nicht erforderlich">Vermutlich nicht erforderlich</option><option value="Vermutlich erforderlich">Vermutlich erforderlich</option></select><div class="calc-mini">Support wird nicht automatisch sicher erkannt und kann Material, Zeit und Endpreis verändern.</div><div class="support-notice" id="supportNotice"><strong>Support voraussichtlich erforderlich:</strong> Die automatische Preisschätzung enthält keinen verbindlich berechneten Supportverbrauch. Zusätzlicher Materialbedarf, längere Druckzeit und Nacharbeit können den finalen Angebotspreis erhöhen.</div>';
 
       if(messageField){
         formGrid.insertBefore(qtyField,messageField);
@@ -82,6 +90,7 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
       quantity=document.getElementById('quantity');
       color=document.getElementById('colorChoice');
       support=document.getElementById('supportChoice');
+      supportNotice=document.getElementById('supportNotice');
     }
 
     /* Kunden klar über erforderliche Nutzungsrechte und mögliche Ablehnung informieren. */
@@ -111,6 +120,14 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
       quoteNote.innerHTML='<strong>Unverbindliche Vorabschätzung.</strong> Der angezeigte Betrag ist noch kein verbindliches Angebot. Vor Produktionsbeginn prüfen wir Druckbarkeit, Ausrichtung, Supportbedarf und Datei technisch. Du erhältst den finalen Gesamtpreis vor Vertragsschluss.';
       price.closest('.price')?.insertAdjacentElement('afterend',quoteNote);
     }
+
+    /* Zusammenfassung direkt vor der Anfrage. */
+    const summary=document.createElement('div');
+    summary.className='request-summary';
+    summary.innerHTML='<h3>Zusammenfassung deiner Anfrage</h3><div class="request-summary-grid"><div><span>Material</span><strong id="sumMaterial">–</strong></div><div><span>Stückzahl</span><strong id="sumQty">1</strong></div><div><span>Farbe</span><strong id="sumColor">Nach Absprache</strong></div><div><span>Support / Überhänge</span><strong id="sumSupport">Technische Prüfung</strong></div><div><span>Geschätztes Material</span><strong id="sumWeight">–</strong></div><div><span>Geschätzte Druckzeit</span><strong id="sumTime">–</strong></div><div style="grid-column:1/-1"><span>Unverbindliche Preisschätzung</span><strong id="sumPrice">–</strong></div></div><div class="request-summary-note">Bitte prüfe die Angaben vor dem Absenden. Die Werte sind eine Vorabschätzung; der finale Preis wird nach technischer Prüfung vor Vertragsschluss bestätigt.</div>';
+    const actions=form?.querySelector('.actions');
+    if(actions)actions.insertAdjacentElement('beforebegin',summary);
+    const sumMaterial=document.getElementById('sumMaterial'),sumQty=document.getElementById('sumQty'),sumColor=document.getElementById('sumColor'),sumSupport=document.getElementById('sumSupport'),sumWeight=document.getElementById('sumWeight'),sumTime=document.getElementById('sumTime'),sumPrice=document.getElementById('sumPrice');
 
     /* P1S-Bauraumprüfung: 256 × 256 × 256 mm als nominelle Grenze. */
     const buildNotice=document.createElement('div');
@@ -153,6 +170,22 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
     const parseNumber=text=>{const m=String(text||'').match(/(\d+(?:[,.]\d+)?)/);return m?Number(m[1].replace(',','.')):NaN;};
     const money=n=>n.toFixed(2).replace('.',',');
 
+    const updateSupportNotice=()=>{
+      if(!supportNotice||!support)return;
+      supportNotice.style.display=support.value==='Vermutlich erforderlich'?'block':'none';
+    };
+
+    const updateSummary=()=>{
+      const qty=Math.max(1,Math.min(100,Math.round(Number(quantity?.value||1))));
+      if(sumMaterial)sumMaterial.textContent=material?.options[material.selectedIndex]?.textContent||'–';
+      if(sumQty)sumQty.textContent=`${qty} ${qty===1?'Exemplar':'Exemplare'}`;
+      if(sumColor)sumColor.textContent=color?.options[color.selectedIndex]?.textContent||'Nach Absprache';
+      if(sumSupport)sumSupport.textContent=support?.options[support.selectedIndex]?.textContent||'Technische Prüfung';
+      if(sumWeight)sumWeight.textContent=weight?.textContent||'–';
+      if(sumTime)sumTime.textContent=time?.textContent||'–';
+      if(sumPrice)sumPrice.textContent=price?.textContent||'–';
+    };
+
     const updatePrice=()=>{
       if(updating)return;
       updateBuildCheck();
@@ -163,12 +196,13 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
         price.textContent='Keine automatische Preisschätzung möglich';
         if(priceDetail)priceDetail.textContent='Modell überschreitet den P1S-Bauraum · individuelle Prüfung erforderlich.';
         updating=false;
+        updateSummary();
         return;
       }
 
       const gramsOne=parseNumber(weight.textContent),hoursOne=parseNumber(time.textContent);
       const qty=Math.max(1,Math.min(100,Math.round(Number(quantity?.value||1))));
-      if(!Number.isFinite(gramsOne)||!Number.isFinite(hoursOne)||gramsOne<=0||hoursOne<=0)return;
+      if(!Number.isFinite(gramsOne)||!Number.isFinite(hoursOne)||gramsOne<=0||hoursOne<=0){updateSummary();return;}
       const opt=material.options[material.selectedIndex],kgPrice=Number(opt?.dataset?.kgprice||0),power=Number(opt?.dataset?.power||0.12);
       if(!Number.isFinite(kgPrice)||kgPrice<=0)return;
 
@@ -186,20 +220,24 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
       price.classList.remove('price-unavailable');
       if(qty===1){
         price.textContent=`ca. ${money(lo)}–${money(hi)} €`;
-        if(priceDetail)priceDetail.textContent='Preis für 1 Exemplar.';
+        if(priceDetail)priceDetail.innerHTML=`1 Exemplar · <strong style="color:#fff">ca. ${money(loPiece)}–${money(hiPiece)} € pro Stück</strong>`;
       }else{
         price.textContent=`ca. ${money(lo)}–${money(hi)} € gesamt`;
         if(priceDetail)priceDetail.innerHTML=`${qty} identische Exemplare · <strong style="color:#fff">ca. ${money(loPiece)}–${money(hiPiece)} € pro Stück</strong>`;
       }
       updating=false;
+      updateSummary();
     };
 
-    new MutationObserver(()=>{updateBuildCheck();updatePrice();}).observe(weight,{childList:true,characterData:true,subtree:true});
-    new MutationObserver(updatePrice).observe(time,{childList:true,characterData:true,subtree:true});
-    if(dims)new MutationObserver(()=>{updateBuildCheck();updatePrice();}).observe(dims,{childList:true,characterData:true,subtree:true});
-    material.addEventListener('input',updatePrice);material.addEventListener('change',updatePrice);
-    quantity?.addEventListener('input',updatePrice);quantity?.addEventListener('change',updatePrice);
-    ['infill','scale','quality'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',()=>queueMicrotask(updatePrice));el.addEventListener('change',()=>queueMicrotask(updatePrice));}});
+    new MutationObserver(()=>{updateBuildCheck();updatePrice();updateSummary();}).observe(weight,{childList:true,characterData:true,subtree:true});
+    new MutationObserver(()=>{updatePrice();updateSummary();}).observe(time,{childList:true,characterData:true,subtree:true});
+    if(dims)new MutationObserver(()=>{updateBuildCheck();updatePrice();updateSummary();}).observe(dims,{childList:true,characterData:true,subtree:true});
+    if(volume)new MutationObserver(updateSummary).observe(volume,{childList:true,characterData:true,subtree:true});
+    material.addEventListener('input',()=>{updatePrice();updateSummary();});material.addEventListener('change',()=>{updatePrice();updateSummary();});
+    quantity?.addEventListener('input',()=>{updatePrice();updateSummary();});quantity?.addEventListener('change',()=>{updatePrice();updateSummary();});
+    color?.addEventListener('change',updateSummary);
+    support?.addEventListener('change',()=>{updateSupportNotice();updateSummary();});
+    ['infill','scale','quality'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',()=>queueMicrotask(()=>{updatePrice();updateSummary();}));el.addEventListener('change',()=>queueMicrotask(()=>{updatePrice();updateSummary();}));}});
 
     /* Zusatzangaben in die bestehende Nachricht einbetten, damit sie auch mit dem vorhandenen Mail-Backend ankommen. */
     if(form&&message){
@@ -210,14 +248,17 @@ if (location.pathname.endsWith('/test.html') || location.pathname.endsWith('test
           `Stückzahl: ${qty}`,
           `Farbwunsch: ${color?.value||'Nach Absprache'}`,
           `Support / Überhänge: ${support?.value||'Bitte technisch prüfen'}`,
-          `Bauraumstatus: ${buildExceeded?'P1S-Bauraum überschritten – individuelle Prüfung erforderlich':'innerhalb der automatischen Bauraumprüfung'}`
+          `Bauraumstatus: ${buildExceeded?'P1S-Bauraum überschritten – individuelle Prüfung erforderlich':'innerhalb der automatischen Bauraumprüfung'}`,
+          `Preisschätzung: ${price?.textContent||'–'}`
         ].join('\n');
         message.value=`${original}${original.trim()?'\n\n':''}--- Konfigurator-Zusatzangaben ---\n${meta}`;
         setTimeout(()=>{message.value=original;},0);
       },true);
     }
 
+    updateSupportNotice();
     updateBuildCheck();
     updatePrice();
+    updateSummary();
   });
 }

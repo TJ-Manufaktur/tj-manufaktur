@@ -1,8 +1,11 @@
 (()=>{
-  if(document.readyState==='loading'){
-    document.write('<script src="script-core.js"><\/script><script src="consent.js"><\/script>');
-    return;
-  }
-  const load=src=>new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.async=false;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});
-  load('script-core.js').finally(()=>load('consent.js'));
+  const loadCore=()=>{
+    if(document.querySelector('script[data-tj-core]'))return;
+    const el=document.createElement('script');
+    el.src='script-core.js';
+    el.defer=true;
+    el.dataset.tjCore='1';
+    document.head.appendChild(el);
+  };
+  loadCore();
 })();

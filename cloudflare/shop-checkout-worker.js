@@ -1,86 +1,12 @@
-// TJ Manufaktur – Cloudflare Worker for Stripe Checkout
-// Required Worker secrets: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET (for webhook verification extension), RESEND_API_KEY (optional order email)
-// Deploy as a separate Worker/route. Never expose secrets in GitHub or browser code.
-
-const ALLOWED_ORIGIN = 'https://tj-manufaktur.de';
-const SUCCESS_URL = 'https://tj-manufaktur.de/shop-erfolg.html?session_id={CHECKOUT_SESSION_ID}';
-const CANCEL_URL = 'https://tj-manufaktur.de/shop-checkout-preview.html?cancelled=1';
-
-// Authoritative server-side catalog. Browser prices are never trusted.
-const CATALOG = {
-  p1: { name: 'Blumenstecker', unitAmount: 590, variants: ['Birke natur','Pappel natur'] },
-  p2: { name: 'Namens-/Tischschild', unitAmount: 790, variants: ['Birke natur','Pappel natur'] },
-  p3: { name: 'Geschenkanhänger', unitAmount: 390, variants: ['Standard 55 × 70 mm','Mini 40 × 50 mm'] },
-  p4: { name: 'Cake Topper', unitAmount: 1290, variants: ['Hochzeit','Geburtstag','Eigener Anlass'] },
-  p5: { name: 'Schlüsselanhänger', unitAmount: 690, variants: ['Holz natur','Holz dunkel'] }
-};
-
-const cors = origin => ({
-  'Access-Control-Allow-Origin': origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : '',
-  'Access-Control-Allow-Methods': 'POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Vary': 'Origin'
-});
-
-const json = (data, status=200, origin=ALLOWED_ORIGIN) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type':'application/json; charset=utf-8', ...cors(origin) } });
-const clean = (v,max=200) => String(v ?? '').trim().slice(0,max);
-
-export default {
-  async fetch(request, env) {
-    const origin = request.headers.get('Origin') || '';
-    if (request.method === 'OPTIONS') return new Response(null,{status:204,headers:cors(origin)});
-    if (origin !== ALLOWED_ORIGIN) return json({error:'Origin not allowed'},403,origin);
-    const url = new URL(request.url);
-    if (request.method !== 'POST' || url.pathname !== '/checkout') return json({error:'Not found'},404,origin);
-    if (!env.STRIPE_SECRET_KEY) return json({error:'Stripe is not configured'},503,origin);
-
-    let body;
-    try { body = await request.json(); } catch { return json({error:'Invalid JSON'},400,origin); }
-    const cart = Array.isArray(body.cart) ? body.cart : [];
-    const customer = body.customer || {};
-    if (!cart.length || cart.length > 20) return json({error:'Invalid cart'},400,origin);
-    if (!clean(customer.email,254).includes('@')) return json({error:'Invalid email'},400,origin);
-
-    const params = new URLSearchParams();
-    params.set('mode','payment');
-    params.set('success_url',SUCCESS_URL);
-    params.set('cancel_url',CANCEL_URL);
-    params.set('customer_email',clean(customer.email,254));
-    params.set('billing_address_collection','auto');
-    params.set('shipping_address_collection[allowed_countries][0]','DE');
-    params.set('locale','de');
-    params.set('submit_type','pay');
-    params.set('metadata[source]','tj-manufaktur-shop');
-    params.set('metadata[customer_name]',clean(`${customer.first||''} ${customer.last||''}`,120));
-    params.set('metadata[note]',clean(customer.note,450));
-
-    let idx = 0;
-    for (const raw of cart) {
-      const product = CATALOG[clean(raw.id,20)];
-      if (!product) return json({error:'Unknown product'},400,origin);
-      const qty = Math.max(1,Math.min(50,Number.parseInt(raw.qty,10)||1));
-      const variant = clean(raw.variant,80);
-      if (!product.variants.includes(variant)) return json({error:'Invalid variant'},400,origin);
-      const personalization = clean(raw.personal,40);
-      const description = [variant, personalization ? `Personalisierung: ${personalization}` : ''].filter(Boolean).join(' · ');
-      params.set(`line_items[${idx}][price_data][currency]`,'eur');
-      params.set(`line_items[${idx}][price_data][unit_amount]`,String(product.unitAmount));
-      params.set(`line_items[${idx}][price_data][product_data][name]`,product.name);
-      params.set(`line_items[${idx}][price_data][product_data][description]`,description);
-      params.set(`line_items[${idx}][quantity]`,String(qty));
-      idx++;
-    }
-
-    // Shipping intentionally not charged yet: final shipping model must be approved before live launch.
-    // Add a server-side shipping_rate or shipping_options here once the actual rate is fixed.
-
-    const stripe = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-      method:'POST',
-      headers:{ 'Authorization':`Bearer ${env.STRIPE_SECRET_KEY}`, 'Content-Type':'application/x-www-form-urlencoded' },
-      body:params
-    });
-    const result = await stripe.json();
-    if (!stripe.ok || !result.url) return json({error:'Stripe checkout could not be created',detail:result.error?.message||''},502,origin);
-    return json({url:result.url,sessionId:result.id},200,origin);
-  }
-};
+// TJ Manufaktur – first shop order Worker (test phase)
+// Required secret: RESEND_API_KEY
+const ALLOWED_ORIGINS=['https://tj-manufaktur.de','https://www.tj-manufaktur.de'];
+const CATALOG={p1:{name:'Blumenstecker',price:590,variants:['Birke natur','Pappel natur']},p2:{name:'Namens- & Tischschild',price:790,variants:['Birke natur','Pappel natur']},p3:{name:'Geschenkanhänger',price:390,variants:['Standard 55 × 70 mm','Mini 40 × 50 mm']},p4:{name:'Cake Topper',price:1290,variants:['Hochzeit','Geburtstag','Eigener Anlass']},p5:{name:'Schlüsselanhänger',price:690,variants:['Holz natur','Holz dunkel']}};
+const clean=(v,n=250)=>String(v??'').trim().slice(0,n),esc=s=>clean(s,1000).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const cors=o=>({'Access-Control-Allow-Origin':ALLOWED_ORIGINS.includes(o)?o:'','Access-Control-Allow-Methods':'POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type','Vary':'Origin'});
+const reply=(d,s,o)=>new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...cors(o)}});
+const euro=c=>(c/100).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+async function mail(env,to,subject,html){const r=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:'TJ Manufaktur <info@tj-manufaktur.de>',to:[to],subject,html})});if(!r.ok)throw new Error('E-Mail-Versand fehlgeschlagen');}
+export default{async fetch(req,env){const origin=req.headers.get('Origin')||'';if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});if(!ALLOWED_ORIGINS.includes(origin))return reply({ok:false,error:'Origin nicht erlaubt.'},403,origin);const url=new URL(req.url);if(req.method!=='POST'||url.pathname!=='/order')return reply({ok:false,error:'Nicht gefunden.'},404,origin);if(!env.RESEND_API_KEY)return reply({ok:false,error:'E-Mail-Dienst nicht konfiguriert.'},503,origin);let b;try{b=await req.json()}catch{return reply({ok:false,error:'Ungültige Anfrage.'},400,origin)}const customer=b.customer||{},cart=Array.isArray(b.cart)?b.cart:[];const first=clean(customer.first,80),last=clean(customer.last,80),email=clean(customer.email,254),street=clean(customer.street,160),zip=clean(customer.zip,10),city=clean(customer.city,100),note=clean(customer.note,500);if(!first||!last||!email.includes('@')||!street||!/^\\d{5}$/.test(zip)||!city)return reply({ok:false,error:'Bitte alle Pflichtfelder korrekt ausfüllen.'},400,origin);if(!cart.length||cart.length>20)return reply({ok:false,error:'Ungültiger Warenkorb.'},400,origin);let total=0,rows='';for(const raw of cart){const p=CATALOG[clean(raw.id,20)];if(!p)return reply({ok:false,error:'Unbekanntes Produkt.'},400,origin);const qty=Math.max(1,Math.min(50,parseInt(raw.qty,10)||1)),variant=clean(raw.variant,80),personal=clean(raw.personal,40);if(!p.variants.includes(variant))return reply({ok:false,error:'Ungültige Ausführung.'},400,origin);const sum=p.price*qty;total+=sum;rows+=`<tr><td>${esc(p.name)}<br><small>${esc(variant)}${personal?' · '+esc(personal):''}</small></td><td>${qty}</td><td>${euro(sum)}</td></tr>`;}
+const order='TJ-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+crypto.randomUUID().slice(0,6).toUpperCase();const address=`${esc(first)} ${esc(last)}<br>${esc(street)}<br>${esc(zip)} ${esc(city)}<br>Deutschland`;const table=`<table cellpadding="8" cellspacing="0" border="1" style="border-collapse:collapse;width:100%"><tr><th align="left">Artikel</th><th>Menge</th><th>Summe</th></tr>${rows}<tr><td colspan="2"><strong>Versand</strong></td><td>0,00 € (Test)</td></tr><tr><td colspan="2"><strong>Gesamt</strong></td><td><strong>${euro(total)}</strong></td></tr></table>`;const common=`<h2>Bestellung ${order}</h2>${table}<h3>Lieferanschrift</h3><p>${address}</p><p><strong>Zahlungsart:</strong> Überweisung</p>${note?'<p><strong>Hinweis:</strong> '+esc(note)+'</p>':''}<p>Kleinunternehmer gemäß § 19 UStG – kein Ausweis der Umsatzsteuer.</p>`;
+try{await mail(env,'info@tj-manufaktur.de','Neue Testbestellung '+order,`<p>Neue Bestellung von ${esc(first)} ${esc(last)} (${esc(email)}).</p>${common}`);await mail(env,email,'Bestellbestätigung '+order,`<p>Hallo ${esc(first)},</p><p>wir haben deine Bestellung erhalten. Dies ist die Bestätigung des Eingangs deiner Bestellung.</p>${common}<p>Die Zahlungsinformationen erhältst du im Rahmen dieses privaten Tests separat. Es wurde keine Online-Zahlung ausgelöst.</p><p>TJ Manufaktur · Am Jägerhof 5 · 34454 Bad Arolsen · info@tj-manufaktur.de</p>`);}catch(e){return reply({ok:false,error:'Bestellung konnte nicht vollständig per E-Mail bestätigt werden.'},502,origin)}return reply({ok:true,orderNumber:order,total:euro(total)},200,origin);}};

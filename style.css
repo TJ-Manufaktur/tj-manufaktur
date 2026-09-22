@@ -7,3 +7,6 @@
 .hero>img{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;object-position:center;background:transparent;padding:0;border:0;box-shadow:none}
 @media(max-width:800px){.brand img{height:60px;max-width:165px}.hero>img{height:auto;max-height:420px;padding:0}}
 @media(max-width:520px){.brand img{height:52px;max-width:145px}.hero>img{height:auto;max-height:340px;padding:0}}
+
+/* Accessibility and mobile interaction refinements */
+:focus-visible{outline:3px solid var(--g);outline-offset:3px}.btn:focus-visible,.cta:focus-visible{outline-color:#171717}.field input,.field select,.field textarea{font-size:16px}button,.btn,.cta,.links a,.foot a{touch-action:manipulation}@media(max-width:520px){.page h1{font-size:clamp(38px,12vw,52px);line-height:1.02;overflow-wrap:anywhere}.page h2{font-size:27px;line-height:1.15}.box,.notice,.card{padding:22px}.actions{align-items:stretch}.actions .btn{max-width:100%;text-align:center}.foot nav{gap:12px 16px}}

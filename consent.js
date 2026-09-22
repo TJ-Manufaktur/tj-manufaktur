@@ -142,9 +142,22 @@
     (footerNav||footer).appendChild(link);
   }
 
+  function addWithdrawalLink(){
+    if(document.querySelector('.tj-withdrawal-link'))return;
+    const footerNav=document.querySelector('footer nav');
+    if(!footerNav)return;
+    const link=document.createElement('a');
+    link.href='vertrag-widerrufen.html';
+    link.className='tj-withdrawal-link';
+    link.textContent='Vertrag widerrufen';
+    link.style.fontWeight='700';
+    footerNav.appendChild(link);
+  }
+
   function init(){
     ensureStyle();
     addFooterLink();
+    addWithdrawalLink();
     const current=read();
     if(current)activateOptionalScripts(current);else showBanner();
   }

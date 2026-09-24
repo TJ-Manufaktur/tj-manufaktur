@@ -1473,11 +1473,24 @@ async function createOrder(
       );
 
 
-    const product =
-      CATALOG[productId];
+    const productRow = await env.DB.prepare(
+      'SELECT product_id,name,price_cents,variants_json,stock,unlimited_stock,active FROM products WHERE product_id=? LIMIT 1'
+    ).bind(productId).first();
+
+    let productVariants = [];
+    try { productVariants = JSON.parse(productRow?.variants_json || '[]'); } catch {}
+
+    const product = productRow ? {
+      name: productRow.name,
+      price: productRow.price_cents,
+      variants: productVariants,
+      stock: productRow.stock,
+      unlimitedStock: !!productRow.unlimited_stock,
+      active: !!productRow.active
+    } : null;
 
 
-    if (!product) {
+    if (!product || !product.active) {
 
       return reply(
         {
@@ -1517,6 +1530,15 @@ async function createOrder(
         origin
       );
 
+    }
+
+
+    if (!product.unlimitedStock && product.stock < qty) {
+      return reply(
+        { ok:false, received:false, error:'Nicht genügend Bestand für '+product.name+'.' },
+        409,
+        origin
+      );
     }
 
 
@@ -1744,6 +1766,13 @@ async function createOrder(
     await env.DB.batch(
       statements
     );
+
+    const stockStatements = items.map(item =>
+      env.DB.prepare(
+        'UPDATE products SET stock=CASE WHEN unlimited_stock=1 THEN stock ELSE stock-? END, updated_at=CURRENT_TIMESTAMP WHERE product_id=? AND (unlimited_stock=1 OR stock>=?)'
+      ).bind(item.quantity,item.productId,item.quantity)
+    );
+    await env.DB.batch(stockStatements);
 
 
     console.log(

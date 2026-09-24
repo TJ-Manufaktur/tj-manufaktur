@@ -1608,7 +1608,7 @@ async function createOrder(
   }
 
 
-  const shipping = 0;
+  const shipping = subtotal >= 5000 ? 0 : 499;
 
   const total =
     subtotal + shipping;
@@ -1912,8 +1912,7 @@ async function createOrder(
         </td>
 
         <td>
-          ${euro(shipping)}
-          (Test)
+          ${shipping === 0 ? 'Kostenfrei' : euro(shipping)}
         </td>
 
       </tr>

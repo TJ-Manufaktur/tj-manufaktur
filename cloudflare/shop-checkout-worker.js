@@ -1474,7 +1474,7 @@ async function createOrder(
 
 
     const productRow = await env.DB.prepare(
-      'SELECT product_id,name,price_cents,variants_json,stock,unlimited_stock,active FROM products WHERE product_id=? LIMIT 1'
+      'SELECT product_id,name,price_cents,variants_json,personalizable,stock,unlimited_stock,active FROM products WHERE product_id=? LIMIT 1'
     ).bind(productId).first();
 
     let productVariants = [];
@@ -1486,7 +1486,8 @@ async function createOrder(
       variants: productVariants,
       stock: productRow.stock,
       unlimitedStock: !!productRow.unlimited_stock,
-      active: !!productRow.active
+      active: !!productRow.active,
+      personalizable: productRow.personalizable !== 0
     } : null;
 
 
@@ -1570,11 +1571,9 @@ async function createOrder(
     }
 
 
-    const personalization =
-      clean(
-        raw.personal,
-        40
-      );
+    const personalization = product.personalizable
+      ? clean(raw.personal,40)
+      : '';
 
 
     const lineTotal =
@@ -1768,12 +1767,21 @@ async function createOrder(
       statements
     );
 
-    const stockStatements = items.map(item =>
-      env.DB.prepare(
-        'UPDATE products SET stock=CASE WHEN unlimited_stock=1 THEN stock ELSE stock-? END, updated_at=CURRENT_TIMESTAMP WHERE product_id=? AND (unlimited_stock=1 OR stock>=?)'
-      ).bind(item.quantity,item.productId,item.quantity)
-    );
-    await env.DB.batch(stockStatements);
+    // Atomarer Bestandsabzug pro Position: D1 ändert den Bestand nur,
+    // wenn zum Zeitpunkt des UPDATE noch genügend Stück vorhanden sind.
+    for (const item of items) {
+      const stockResult = await env.DB.prepare(
+        'UPDATE products SET stock=stock-?,updated_at=CURRENT_TIMESTAMP WHERE product_id=? AND unlimited_stock=0 AND stock>=?'
+      ).bind(item.quantity,item.productId,item.quantity).run();
+
+      const productState = await env.DB.prepare(
+        'SELECT unlimited_stock FROM products WHERE product_id=? LIMIT 1'
+      ).bind(item.productId).first();
+
+      if (!productState?.unlimited_stock && Number(stockResult.meta?.changes || 0) !== 1) {
+        throw new Error('Bestand wurde zwischenzeitlich verkauft: '+item.productName);
+      }
+    }
 
 
     console.log(

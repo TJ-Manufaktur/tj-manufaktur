@@ -1550,6 +1550,7 @@ async function createOrder(
 
 
     if (
+      product.variants.length > 0 &&
       !product.variants.includes(
         variant
       )

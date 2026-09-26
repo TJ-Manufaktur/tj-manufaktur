@@ -20,6 +20,8 @@
 // ============================================================
 
 
+import { legalInformation } from './legal-information.js';
+
 const ALLOWED_ORIGINS = [
   'https://tj-manufaktur.de',
   'https://www.tj-manufaktur.de'
@@ -655,6 +657,11 @@ function reply(
 
         'X-Content-Type-Options':
           'nosniff',
+
+        'X-Frame-Options': 'DENY',
+        'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+        'Strict-Transport-Security': 'max-age=31536000',
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 
         'Referrer-Policy':
           'no-referrer',
@@ -1363,6 +1370,8 @@ async function createOrder(
   }
 
 
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return reply({ok:false,received:false,error:'Ungültige Anfrage.'},400,origin);
+
   const customer =
     body.customer || {};
 
@@ -1401,7 +1410,8 @@ async function createOrder(
   if (
     !first ||
     !last ||
-    !email.includes('@') ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    customer.country !== 'Deutschland' ||
     !street ||
     !/^\d{5}$/.test(zip) ||
     !city
@@ -1465,6 +1475,7 @@ async function createOrder(
 
 
   for (const raw of cart) {
+    if (!raw || typeof raw !== "object") return reply({ok:false,received:false,error:"Ungültiger Warenkorb."},400,origin);
 
     const productId =
       clean(
@@ -1508,10 +1519,7 @@ async function createOrder(
 
 
     const qty =
-      Number.parseInt(
-        raw.qty,
-        10
-      );
+      Number(raw.qty);
 
 
     if (
@@ -1575,6 +1583,10 @@ async function createOrder(
       ? clean(raw.personal,40)
       : '';
 
+
+    if (!Number.isInteger(raw.expectedUnitPrice) || raw.expectedUnitPrice !== product.price) {
+      return reply({ok:false, received:false, error:'Der Produktpreis hat sich geändert oder konnte nicht bestätigt werden. Bitte den Artikel im Shop erneut in den Warenkorb legen und den Gesamtpreis prüfen.'},409,origin);
+    }
 
     const lineTotal =
       product.price * qty;
@@ -2127,10 +2139,10 @@ async function createOrder(
         </p>
 
         ${common}
+        ${legalInformation}
 
         <p>
-          Für diese Testbestellung wurde keine
-          Online-Zahlung ausgelöst.
+          Es wurde keine Online-Zahlung ausgelöst. Die gewählte Zahlungsart ist Überweisung / Vorkasse.
         </p>
 
         <p>

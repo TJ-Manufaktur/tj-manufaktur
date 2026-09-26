@@ -14,7 +14,7 @@ document.querySelectorAll('[data-carousel]').forEach(carousel=>{
   });
   const dots=[...dotsWrap.querySelectorAll('.carousel-dot')];
   function show(i){index=(i+slides.length)%slides.length;track.style.transform=`translateX(-${index*100}%)`;dots.forEach((d,j)=>d.classList.toggle('active',j===index));}
-  function restart(){clearInterval(timer);timer=setInterval(()=>show(index+1),5500);}
+  function restart(){clearInterval(timer);/* Bilder wechseln ausschließlich durch bewusste Bedienung. */}
   prev.addEventListener('click',()=>{show(index-1);restart();});next.addEventListener('click',()=>{show(index+1);restart();});carousel.addEventListener('mouseenter',()=>clearInterval(timer));carousel.addEventListener('mouseleave',restart);restart();
 });
 

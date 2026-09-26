@@ -16,7 +16,7 @@ Shopify wurde im Verlauf erfolgreich verbunden. Es besteht zusätzlich ein Shop 
 | Bildmaße / Lazy Loading | Tatsächliche Bildmaße eingetragen; quadratisches Logo statt falschem 190:68-Verhältnis. Galerie-Bilder laden verzögert, sichtbare Logos nicht. Dynamische Shop-Logos haben ebenfalls Maße. |
 | Überschriften | Startseiten-Hierarchie war bereits korrigiert. Öffentliche Seiten geprüft. Die alte Vorschau hat zwei H1 in alternativ sichtbaren Ansichten; der öffentliche Shop hat eine H1. |
 | Skip-Link | Bereits weitgehend vorhanden; Sprungziel jetzt fokussierbar. Tastaturtest bestanden. |
-| Meta-Description | Startseite bereits auf 128 Zeichen gekürzt. Kein erneuter Eingriff nötig. |
+| Meta-Description | Startseite bereits auf 133 Zeichen gekürzt. Kein erneuter Eingriff nötig. |
 | CSP | Auf allen HTML-Seiten Ressourcen-CSP als frühes Meta-Element. Ausführbare Inline-Skripte ausgelagert; Inline-Eventhandler gesperrt. Erlaubt sind eigene Ressourcen und die zwei vorhandenen Worker-Endpunkte. Inline-CSS bleibt erlaubt. Header-Konfiguration einschließlich frame-ancestors vorbereitet. |
 | HSTS | Header-Zielwert vorbereitet: max-age=31536000, ohne includeSubDomains/Preload. Aktivierung erfordert bestätigtes dauerhaftes HTTPS am ausliefernden Dienst. |
 | X-Frame-Options | SAMEORIGIN für die Website vorbereitet; DENY im Shop-API-Code. Meta-HTML kann diesen HTTP-Header nicht ersetzen. |

@@ -52,3 +52,5 @@ if (document.getElementById('requestForm')) {
     if(form&&message){form.addEventListener('submit',()=>{const original=message.value,qty=Math.max(1,Math.min(100,Math.round(Number(quantity?.value||1)))),meta=[`Stückzahl: ${qty}`,`Farbwunsch: ${color?.value||'Nach Absprache'}`,`Support / Überhänge: ${support?.value||'Bitte technisch prüfen'}`,`Bauraumstatus: ${buildExceeded?'P1S-Bauraum überschritten – individuelle Prüfung erforderlich':'innerhalb der automatischen Bauraumprüfung'}`].join('\n');message.value=`${original}${original.trim()?'\n\n':''}--- Konfigurator-Zusatzangaben ---\n${meta}`;setTimeout(()=>{message.value=original},0)},true)}updateSupportNotice();updateBuildCheck();updatePrice();updateSummary();
   });
 }
+
+document.querySelectorAll('[data-season-until]').forEach(el=>{const until=new Date(el.dataset.seasonUntil+'T23:59:59');if(!isNaN(until)&&new Date()>until)el.hidden=true;});

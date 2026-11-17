@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
+Disallow: /shop/
+Disallow: /shop-preview.html
+Disallow: /shop-checkout-preview.html
+Disallow: /shop-erfolg.html
+Disallow: /shop-abbruch.html
 
 Sitemap: https://tj-manufaktur.de/sitemap.xml
